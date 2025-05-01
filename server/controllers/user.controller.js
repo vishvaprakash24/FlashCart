@@ -2,11 +2,13 @@ import sendEmail from '../config/sendEmail.js';
 import UserModel from '../models/user.model.js';
 import bcrypt from 'bcryptjs';
 import verifyEmailTemplate from '../utils/verifyEmailTemplate.js';
+import generateAccessToken from '../utils/generateAccessToken.js';
+import generateRefreshToken from '../utils/generateRefreshToken.js';
 
 export async function registerUserController(req, res) {
   try {
-    const { username, email, password } = req.body;
-    if(!username || !email || !password) {
+    const { name, email, password } = req.body;
+    if(!name || !email || !password) {
       return res.status(400).json({
         message: "All fields are required" ,
         error: true,
@@ -18,7 +20,7 @@ export async function registerUserController(req, res) {
 
     if (user) {
       return res.status(400).json({
-        message: "User already exists",
+        message: "Email already registered",
         error: true,
         success: false
       });
@@ -28,33 +30,129 @@ export async function registerUserController(req, res) {
     const hashedPassword = await bcrypt.hash(password, salt);
     
     const newUser = new UserModel({
-      username,
+      name,
       email,
       password: hashedPassword,
     });
     const savedUser = await newUser.save();
 
-    const verifyEmailUrl = `${process.env.FRONTEND_URL}/verify-email?code=${savedUser._id}`;
+    const verifyEmailUrl = `${process.env.FRONTEND_URL}/verify-email?code=${savedUser?._id}`;
     
     const verifyEmail = await sendEmail({
       sendTo: email, 
-      subject: "Verify your email address",
+      subject: "Verify your email address - FlashCart",
       html: verifyEmailTemplate({
-        username,
+        name,
         url: verifyEmailUrl
       }),
-       })
-       return res.status(200).json({
-        message: "User created successfully",
-        error: false,
-        success: true,
-        data: savedUser
-      });
+       });
+
+    return res.status(200).json({
+      message: "User created successfully",
+      error: false,
+      success: true,
+      data: savedUser
+    });
   } catch (error) {
     return res.status(500).json({ 
         message: error.message || error,
         error: true,
         success: false,
      });
+  }
+}
+
+export async function verifyEmailController(req, res) {
+  try {
+    const {code} = req.body;
+    const user = await UserModel.findOne({_id: code});
+
+    if(!user){
+      return res.status(400).json({
+        message: "Invalid code",
+        error: true,
+        success: false
+      })
+    }
+    const updateUser = await UserModel.updateOne({_id}, {
+      verify_email: true
+    });
+
+    return res.status(200).json({
+      message: "Email verified successfully",
+      error: false,
+      success: true,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      message: error.message || error,
+      error: true, 
+      success: false
+    })
+  }
+}
+
+// login controller
+export async function loginController(req, res){
+  try {
+    const {email, password} = req.body;
+    if(!email || !password){
+      return res.status(400).json({
+        message: "All fields are required",
+        error: true,
+        success: false
+      })
+    }
+    const user = await UserModel.findOne({email})
+    if(!user){
+      return res.status(400).json({
+        message: "User not registered",
+        error: true,
+        success: false
+      })
+    }
+    if(user.status !== "Active"){
+      return res.status(400).json({
+        message: "Contact admin to activate your account",
+        error: true,
+        success: false
+      })
+    }
+
+    const checkPassword = await bcrypt.compare(password, user.password);
+    if(!checkPassword){
+      return res.status(400).json({
+        message: "Invalid password",
+        error: true,
+        success: false
+      })
+    }
+
+    const accessToken = await  generateAccessToken(user._id);
+    const refreshToken = await generateRefreshToken(user._id);
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None"
+    }
+    res.cookie("accessToken", accessToken, cookieOptions)
+    res.cookie("refreshToken", refreshToken, cookieOptions)
+    return res.status(200).json({
+      message: "Logged in successfully",
+      error: false,
+      success: true,
+      data: {
+        accessToken,
+        refreshToken
+      }
+    })
+  } catch (error) {
+    return res.status(500).json({
+      message: error.message || error,
+      error: true,
+      success: false
+    })
+    
   }
 }

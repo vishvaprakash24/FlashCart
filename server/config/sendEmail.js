@@ -7,7 +7,7 @@ if (!process.env.RESEND_API) {
 //   throw new Error('Missing RESEND_API environment variable');
 }
 
-const resend = new Resend('process.env.RESEND_API');
+const resend = new Resend(process.env.RESEND_API);
 
 const sendEmail = async ({name, sendTo, subject, html})=>{
     try {
