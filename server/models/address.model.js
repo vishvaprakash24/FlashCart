@@ -25,6 +25,7 @@ const addressSchema = new mongoose.Schema({
         type: Number,
         default: null
     },
+    // initially not added this.
     status: {
         type: Boolean,
         default: true

@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema({
     },
     password: {
         type: String,
-        required: [true, "Please provide password"]
+        required: [true, "Please provide your password"]
     },
     avatar: {
         type: String, 
